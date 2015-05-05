@@ -1,0 +1,68 @@
+#!/bin/sh
+# monitraffic : This starts and stops monitraffic
+#
+# description: Monitors all traffic on re2 LAN interface
+# processname: monitraffic
+# pidfile: /var/run/monitraffic.pid
+ 
+# PROVIDE: monitraffic
+# REQUIRE: NETWORKING DAEMON LOGIN
+# KEYWORD: shutdown
+
+. /etc/rc.subr
+
+name=monitraffic
+rcvar=monitraffic_enable
+pidfile=/var/run/${name}.pid
+
+load_rc_config "${name}"
+
+: ${monitraffic_enable=NO}
+: ${monitraffic_user="root"}
+
+tcpdump_command="tcpdump -ei re2 -s 0 -G 1800 -w /var/tmp/traceLANre2-%d-%m-%Y_%H-%M-%S.pcap not port 22"
+
+command="/usr/sbin/daemon"
+command_args="-p ${pidfile} -u ${monitraffic_user} ${tcpdump_command}"
+
+start_precmd="pid_touch"
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+status_cmd="${name}_status"
+
+pid_touch() {
+    touch ${pidfile}
+    chown ${monitraffic_user} ${pidfile}
+}
+
+monitraffic_start() {
+    echo "Starting monitraffic."
+    exec ${command} ${command_args}
+    return
+}
+
+monitraffic_stop() {
+    if [ -z "${pidfile}" ]; then
+        echo "${name} not running? (check ${pidfile})."
+        return 1
+    fi
+    if [ ! -f ${pidfile} ]; then
+        debug "pid file (${pidfile}): not readable."
+        return
+    fi
+
+    echo "Stopping ${name}."
+    kill -KILL ${pidfile} 2> /dev/null && echo "Killed."
+    rm -f ${pidfile}
+}
+
+monitraffic_status() {
+    if [ -f "${pidfile}" ]; then
+        echo "${name} is running as pid ${pidfile}."
+    else
+        echo "${name} is not running."
+        return 1
+    fi
+}
+
+run_rc_command "$1"
